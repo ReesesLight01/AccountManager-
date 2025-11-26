@@ -1,0 +1,576 @@
+AccountManager.java
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Scanner;
+
+/**
+ * Manages the registration and validation of user accounts.
+ * Stores multiple users in arrayList for later verification as well as
+ * various methods needed later for logging in and validation.
+
+ * @author Jeremias Batista*/
+public class AccountManager {
+    // A file that will hold the data of all User's. Will aid in logging in.
+    private final String USERS_FILE = "users.csv";
+    private final Scanner input;
+    private static AccountManager accountManager = null;
+    
+    // The accounts array list that would store all the accounts created 
+    // and being able to store userName, hashedPassword, securityAnswer 
+    private List<User> accounts;
+
+    private AccountManager(Scanner input) {
+        this.input = input;
+        loadAccounts();
+    }
+
+    public static AccountManager getInstance(Scanner input) {
+        if (accountManager == null) {
+            accountManager = new AccountManager(input);
+        }
+        return accountManager;
+    }
+
+     /**
+     * Allows a user to login or create an account or quit the application.
+     * The method returns in two cases: when a user has logged in or they has chosen the quit the app.
+     * 
+     * @return a User object representing the logged in user
+     */
+    public User authenticate() {    	
+        while(true) {
+            System.out.println("Choose an option:\n\tL - Login\n\tR - Register\n\tQ - Quit\n");
+            System.out.print("> ");
+            String option = input.nextLine().trim().toUpperCase();
+            System.out.println();
+            
+            switch (option) {
+                case "L" -> {
+                    User user = login();
+                    if (user != null) {
+                        return user;
+                    }
+                }
+                
+                case "R" -> {
+                    User user = createAccount();
+                    if (user != null) {
+                        System.out.println("\nAccount created successfully!\n");
+                    }
+                    else {
+                        System.out.println("\nAccount creation successfully canceled.\n");
+                    }
+                }
+                   
+                case "Q" -> {
+                    System.out.println("Thank you for using this app!");
+                    System.exit(0);
+                }
+                  
+                default -> {}
+            }         
+    	}
+    }
+
+    /**
+     * The method needed in order to create an account
+     * in which we will go through step by step and call upon User and 
+     * set values.
+     * As well as say requirements needed for userName and password
+     * 
+     */
+    public User createAccount() {
+        System.out.println("Type 'e' to cancel account creation at at any time.\n");
+        // The return null's are for when a user types 'e.' This will make them actually stop and not go to the next method
+        
+        String username = askForUsername();
+        if (username == null) return null;
+
+        String password = askForPassword();
+        if (password == null) return null;
+
+        String question = askForSecQuestion();
+        if (question == null) return null;
+
+        String secretAnswer = askForSecretAnswer();
+        if (secretAnswer == null) return null;
+
+        User newUser = new User(username, password.hashCode(), question, secretAnswer.hashCode());
+        accounts.add(newUser);
+        appendAccount(newUser);
+        
+        return newUser;
+    }
+
+    /**
+     * Helper method for creating a username
+     * @return a valid username or null
+     */
+    private String askForUsername() 
+    {
+        while (true) 
+        {   
+            System.out.print("Create a username (must be longer than 3 characters, shorter than 16 characters, and have no special characters): ");         
+            String username = input.nextLine().trim();
+            
+            if (username.equalsIgnoreCase("e")) 
+            {
+                System.out.println("Account creation canceled by user.\n");
+            	return null;
+            } 
+            else if (isUsernameTaken(username)) 
+            {
+                System.out.println("Username already exists. Try another one.");
+                continue;
+            } 
+            else if (ValidationManager.isValidUsername(username)) // HAS NO exlcamation mark, test if it needs one or not!!!!!!!!!!!
+            {
+            	return username;
+            }
+            
+            System.out.println("Invalid username. Please try again");
+        }
+    }
+
+    /**
+     * Helper method for creating a password
+     * @return a valid password or null
+     */
+    private String askForPassword() 
+    {
+        while (true) 
+        {      
+            System.out.print("Create a password (must include at least 1 number, 1 special char, and be at least 5 characters): ");      
+            String password = input.nextLine().trim();
+            if (password.equalsIgnoreCase("e")) 
+            {
+                System.out.println("Account creation canceled by user.\n");
+            	return null;
+            } 
+            else if (ValidationManager.isValidPassword(password)) 
+            {
+            	return password;
+            }
+            
+            System.out.println("Invalid password. Please try again.");
+        }
+    }
+
+    /**
+     * Helper method for creating a security question
+     * @return a valid security question or null
+     */
+    private String askForSecQuestion() 
+    {
+        while (true) 
+        {
+            System.out.print("Create a security question (or type 'e' to cancel): ");
+            String question = input.nextLine().trim();
+            
+            if (question.equalsIgnoreCase("e")) 
+            {
+                System.out.println("Account creation canceled by user.\n");
+                return null;
+            }
+            
+            if (question.isEmpty()) 
+            {
+                System.out.println("Question cannot be empty.");
+                continue;
+            }
+            
+            System.out.print("Confirm this question? Type Y to confirm, anything else to redo: ");
+            String confirm = input.nextLine().trim().toUpperCase();
+            if (confirm.equals("Y")) return question.replace(",", "");
+        }
+    }
+
+    /**
+     * Helper method for creating a secret answer
+     * @return valid security answer or null
+     */
+    private String askForSecretAnswer() 
+    {
+        while (true) 
+        {
+            System.out.print("Enter the answer to your security question (or type 'e' to cancel): ");
+            String answer = input.nextLine().trim();
+            
+            if (answer.equalsIgnoreCase("e")) 
+            {
+                System.out.println("Account creation canceled by user.\n");
+                return null;
+            }
+            
+            if (!answer.isEmpty()) 
+            {
+            	return answer;
+            }
+            System.out.println("Secret answer cannot be empty.");
+        }
+    }
+    
+    /**
+     * Helper method for checking if a username already exists in the accounts list.
+     * 
+     * @param username The username to check for duplicates
+     * @return true if taken, false otherwise
+     */
+    private boolean isUsernameTaken(String username) 
+    {   
+        for (User user : accounts) 
+        {
+            if (user.getUsername().equalsIgnoreCase(username)) 
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * After talking with integration team, this will the be method
+     * they call to then go into main menu, therefore we need to implement 
+     * all the other methods inside this and return a user so that way the
+     * integration team can use the user to then access different parts of
+     * the main menu and lead them.
+     * 
+     * @return
+     */
+    public User login() 
+    {
+        System.out.print("Username (or 'e' to exit): ");
+        String username = input.nextLine().trim();
+        if (username.toLowerCase().equalsIgnoreCase("e")) 
+        {
+            System.out.println("Login Canceled.\n");
+            return null; 
+        } 
+
+        System.out.print("Password (or type 'e' to exit): ");
+        String password = input.nextLine().trim();
+        System.out.println();
+        if (password.toLowerCase().equalsIgnoreCase("e")) 
+        { 
+            System.out.println("Login Canceled.\n");
+            return null;
+        } 
+        
+        int hashedPassword = password.hashCode();
+        User foundUser = null;
+        
+        for (User user : accounts) 
+        {
+            if (user.getUsername().equals(username)) 
+            {
+                foundUser = user;
+                break;
+            }
+        }
+	          
+        
+        if (foundUser == null) // TEST THIS!!
+        {
+            System.out.println("Username not found.\n");
+            return null;
+        } 
+        else if (foundUser.getPassword() != hashedPassword) 
+        {
+            System.out.println("Incorrect password.\n");
+            return null;
+        } 
+        else 
+        {
+            System.out.println("Login successful. Welcome back, " + foundUser.getUsername() + "!\n");
+            return foundUser;
+        }
+
+    }
+    
+    
+    /**
+     * Deletes a user account from the system.
+     * This method searches for a user by username, verifies their password,
+     * and removes them from the user list if authenticated.
+     * @param user the user to delete
+     * @return true if the account was successfully deleted, false otherwise deleteData
+    */
+    public boolean deleteAccount(User user) 
+    {
+        if (user == null) // TEST THIS!!!
+        {
+            System.out.println("No user specified. Cannot delete account.\n");
+            return false;
+        }
+        
+        boolean found = accounts.contains(user);
+        if (!found) 
+        {
+            System.out.println("This user does not exist.");
+            return false;
+        }
+
+        // Delete user files and folders
+        System.out.print("Are you sure you want to delete your account? Your information will be lost forever.\nType Y to confirm or anything else to cancel the deletion: ");
+        String choice = input.nextLine().toUpperCase();
+        
+        if(choice.equals("Y")) 
+        {
+            try {
+                UserStorage storage = new UserStorage(user.getUsername());
+                storage.deleteAllData(); // Storage team method (should handle recursive deletion)
+                accounts.remove(user);
+                saveAllAccounts();
+                System.out.println("Account '" + user.getUsername() + "' was deleted successfully.");
+                return true;
+            } 
+            catch (Exception e) 
+            {
+                System.err.println("Warning: Could not delete user files. Continuing...");
+                return false;
+            }
+       } 
+        else 
+        {
+            System.out.println("Canceled account deletion.");
+            return false;
+        }
+
+    }
+
+    
+    /**
+     * Allows a user to change their password using either the current password or their security question.
+     * Prompts the user until successful or until canceled.
+     *
+     * @param user The user who wants to change their password.
+     */
+    public void changePassword(User user) 
+    {
+        if (user == null) 
+        {
+            System.err.println("No user provided to changePassword().");
+            return;
+        }
+        
+        
+        System.out.println("To change your password, you must provide either your current password or the answer to your custom security question.");
+        
+        boolean done = false;
+        while (!done) 
+        {
+            System.out.print("\tP - Current Password\n\tS - Security Question Answer\n\tC - Cancel\n\n> ");
+            String option = input.nextLine().toUpperCase();
+            System.out.println();
+
+            if (option.equals("P")) 
+            {
+                System.out.print("Enter current password: ");
+                int password = input.nextLine().trim().hashCode();
+                
+                if (password == user.getPassword()) 
+                {
+                    String newPassword = "";
+
+                    while (true) 
+                    {
+						System.out.printf("New password (Must have 5 characters, 1 number, AND 1 special character): ");
+						newPassword = input.nextLine().trim();
+
+                        if (ValidationManager.isValidPassword(newPassword)) 
+                        {
+                            break;
+                        } 
+                        else 
+                        {
+                            System.out.println("Password does not meet the requirements. Please try again.");
+                        }
+                    }
+                    
+                    user.setPassword(newPassword.hashCode());
+                    saveAllAccounts();
+                    System.out.printf("\nYour password has been successfully updated!\n");
+                    done = true;
+				} 
+                else 
+                {
+                    System.out.println("Your password is incorrect.\n");
+                    System.out.println("Please choose one of of the following:");
+                }
+            } 
+            else if (option.equals("S")) 
+            {
+                System.out.println(user.getSecurityQuestion());
+                System.out.print("Answer: ");
+                int newSecretAnswer = input.nextLine().trim().hashCode();
+                if (newSecretAnswer == user.getSecretAnswer()) 
+                {   
+                    String newPassword = "";
+
+                    while (true) 
+                    {
+						System.out.printf("New password (Must have 5 characters, 1 number, AND 1 special character): ");
+						newPassword = input.nextLine();
+
+                        if (ValidationManager.isValidPassword(newPassword)) 
+                        {
+                            break;
+                        } 
+                        else 
+                        {
+                            System.out.println("Password does not meet the requirements. Pleas try again.");
+                        }
+                    }
+                    
+                    user.setPassword(newPassword.hashCode());
+                    saveAllAccounts();
+                    System.out.printf("\nYour password has been successfully updated!\n");
+                    done = true;
+                } 
+                else 
+                {
+                    System.out.println("Your answer is incorrect.\n");
+                    System.out.println("Please choose one of of the following:");
+                }
+            } 
+            else if (option.equals("C")) 
+            {
+                System.out.println("Password change canceled.\n");
+                return;
+            } 
+            else 
+            {
+                System.out.println("Please choose one of of the following:");
+            }
+        }
+    }
+
+
+    // Persistance methods
+
+    // Method used for storing User accounts in a "database."
+    // Will also create a csv file with your accounts for you to 
+    // log in later.
+    private void loadAccounts() 
+    {
+        accounts = new ArrayList<>(); // Creating a fresh ArrayList to hold accounts (so people can log in)
+
+        File file = new File(USERS_FILE);
+        
+        if (!file.exists()) 
+        {
+            // If file does not exist, create it
+            try {
+                if (file.createNewFile()) 
+                {
+                    System.out.println("No existing user file found. New file created."); // Delete this if it's too much (unnessecary I mean)
+                }            
+            } 
+            catch (IOException e) 
+            {
+                System.err.println("Error creating users CSV file: " + e.getMessage());
+            }
+            return; // Nothing else to load
+        }
+
+        // Reading the file
+        boolean isCorrupted = false;        
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line;
+            int lineNumber = 0;
+            
+            while ((line = br.readLine()) != null) 
+            {
+            	lineNumber++;
+            	
+                String[] fields = line.split(",");
+                if (fields.length != 4) 
+                {
+                    isCorrupted = true;
+                	System.err.println("Skipping account " + lineNumber + ": Corrupted, malformed line (expected 4 fields, got " + fields.length + ")");
+                	continue; // skip malformed lines
+                }
+
+                String username = fields[0];
+                String passwordStr = fields[1];
+                String question = fields[2];
+                String answerStr = fields[3];
+                
+                
+                if (username.isEmpty() || question.isEmpty() || passwordStr.isEmpty() || answerStr.isEmpty()) 
+                {
+                    System.err.println("[ERROR] Line " + lineNumber + ": One or more fields are empty. Skipping.");
+                    continue;
+                }
+                
+                if (!ValidationManager.isValidUsername(username)) 
+                {
+                    System.err.println("[ERROR] Line " + lineNumber + ": Invalid username format. Skipping.");
+                    continue;
+                }
+                
+                
+                try {
+                    int hashedPassword = Integer.parseInt(passwordStr);
+                    int hashedAnswer = Integer.parseInt(answerStr);
+	                
+	                User user = new User(username, hashedPassword, question, hashedAnswer);
+	                accounts.add(user);
+                } 
+             catch (NumberFormatException e) {
+                isCorrupted = true;
+            	System.out.println("Skipping account " + lineNumber + ": Corrupted, non-numeric password or secret answer.");
+             }
+
+             if (isCorrupted) {
+                System.out.println();
+             }
+          }
+        } catch (IOException e) {
+            System.err.println("Error loading users accounts: " + e.getMessage());
+        }
+    } 
+
+    // Method to update the file with the modifications made
+	// and to user for other methods.
+	private void saveAllAccounts() 
+	{
+	    if (accounts == null || accounts.isEmpty()) 
+	    {
+	        System.out.println("[INFO] No user accounts to save.");
+	        return;
+	    }
+	    
+	    try (BufferedWriter writer = new BufferedWriter(new FileWriter(USERS_FILE))) 
+	    {
+	        for (User u : accounts) 
+	        {
+	            writer.write(u.toCSVFormat());
+                writer.newLine();
+	        }
+	        
+	        System.out.println("User accounts successfully saved.");
+	    } 
+	    catch (IOException e) 
+	    {
+	        System.err.println("Error saving users: " + e.getMessage());
+	    }
+	}
+
+    private void appendAccount(User user) 
+    {
+		try (BufferedWriter writer = new BufferedWriter(new FileWriter(USERS_FILE, true))) {
+		    writer.write(user.toCSVFormat()); 
+            writer.newLine();
+		} catch (IOException e) {
+		    System.out.println("Error saving user to file: " + e.getMessage());
+		}
+    }
+}
