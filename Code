@@ -15,7 +15,7 @@ import java.util.Scanner;
  * Stores multiple users in arrayList for later verification as well as
  * various methods needed later for logging in and validation.
 
- * @author Jeremias Batista*/
+ * @author Jeremias Batista, Munif Wahid*/
 public class AccountManager {
     // A file that will hold the data of all User's. Will aid in logging in.
     private final String USERS_FILE = "users.csv";
